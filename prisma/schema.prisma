@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  SALES_REP
+}
+
+enum LeadSource {
+  WHATSAPP
+  WEBSITE
+  GOOGLE_BUSINESS
+  EMAIL
+  MANUAL
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  QUOTED
+  WON
+  LOST
+}
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+  SMS
+  INTERNAL
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ActivityType {
+  LEAD_CREATED
+  LEAD_SCORED
+  MESSAGE_SENT
+  MESSAGE_RECEIVED
+  QUOTATION_CREATED
+  QUOTATION_SENT
+  QUOTATION_APPROVED
+  QUOTATION_REJECTED
+  INVOICE_CREATED
+  INVOICE_SENT
+  INVOICE_PAID
+  FOLLOW_UP_SCHEDULED
+  FOLLOW_UP_SENT
+  NOTE_ADDED
+  STATUS_CHANGED
+  CUSTOMER_CREATED
+}
+
+enum TemplateType {
+  EMAIL
+  WHATSAPP
+  QUOTATION
+  INVOICE
+}
+
+enum FollowUpStatus {
+  PENDING
+  SENT
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(SALES_REP)
+  orgId     String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  organization Organization @relation(fields: [orgId], references: [id])
+}
+
+model Organization {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  whatsappPhoneId     String?
+  whatsappAccessToken String?
+  whatsappVerifyToken String?
+  branding            Json?    
+  settings            Json?    
+  createdAt           DateTime @default(now())
+
+  users      User[]
+  leads      Lead[]
+  customers  Customer[]
+  products   Product[]
+  messages   Message[]
+  quotations Quotation[]
+  invoices   Invoice[]
+  activities Activity[]
+  templates  Template[]
+  followUps  FollowUp[]
+}
+
+model Lead {
+  id                  String     @id @default(cuid())
+  orgId               String
+  name                String
+  phone               String?
+  email               String?
+  source              LeadSource @default(MANUAL)
+  status              LeadStatus @default(NEW)
+  aiScore             Int?
+  requirements        Json?
+  aiSummary           Json?
+  assignedToId        String?
+  convertedToCustomerId String?   @unique
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  customer     Customer?    @relation("LeadToCustomer")
+  activities   Activity[]
+  followUps    FollowUp[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  orgId     String
+  leadId    String?  @unique
+  name      String
+  phone     String?
+  email     String?
+  company   String?
+  address   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  lead         Lead?        @relation("LeadToCustomer", fields: [leadId], references: [id])
+  messages     Message[]
+  quotations   Quotation[]
+  invoices     Invoice[]
+  activities   Activity[]
+  followUps    FollowUp[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  price       Decimal
+  unit        String?
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  organization Organization    @relation(fields: [orgId], references: [id])
+  quotationItems QuotationItem[]
+  invoiceItems   InvoiceItem[]
+}
+
+model Message {
+  id          String           @id @default(cuid())
+  customerId  String?
+  orgId       String
+  channel     Channel
+  direction   MessageDirection
+  content     String
+  mediaUrl    String?
+  mediaType   String?
+  waMessageId String?          @unique
+  senderName  String?
+  status      MessageStatus?
+  createdAt   DateTime         @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+}
+
+model Quotation {
+  id          String          @id @default(cuid())
+  customerId  String
+  orgId       String
+  quoteNumber String
+  subtotal    Decimal
+  tax         Decimal
+  discount    Decimal         @default(0)
+  total       Decimal
+  status      QuotationStatus @default(DRAFT)
+  pdfUrl      String?
+  aiNotes     Json?
+  validUntil  DateTime?
+  sentVia     Channel?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  organization Organization    @relation(fields: [orgId], references: [id])
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  items        QuotationItem[]
+  invoices     Invoice[]
+}
+
+model QuotationItem {
+  id          String  @id @default(cuid())
+  quotationId String
+  productId   String
+  description String?
+  quantity    Int
+  unitPrice   Decimal
+  total       Decimal
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  customerId    String
+  orgId         String
+  quotationId   String?
+  invoiceNumber String
+  subtotal      Decimal
+  tax           Decimal
+  total         Decimal
+  status        InvoiceStatus @default(DRAFT)
+  pdfUrl        String?
+  dueDate       DateTime
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  quotation    Quotation?    @relation(fields: [quotationId], references: [id])
+  items        InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  productId   String
+  description String?
+  quantity    Int
+  unitPrice   Decimal
+  total       Decimal
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  orgId       String
+  leadId      String?
+  customerId  String?
+  type        ActivityType
+  description String
+  actor       String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+}
+
+model Template {
+  id        String       @id @default(cuid())
+  orgId     String
+  type      TemplateType
+  name      String
+  subject   String?
+  content   String
+  variables Json?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+}
+
+model FollowUp {
+  id             String         @id @default(cuid())
+  orgId          String
+  leadId         String?
+  customerId     String?
+  channel        Channel
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         FollowUpStatus @default(PENDING)
+  messageContent String?
+  createdAt      DateTime       @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+}
