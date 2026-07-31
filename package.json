@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.24",
-    "@prisma/client": "^7.9.1",
+    "@prisma/client": "^5.22.0",
     "@tanstack/react-query": "^5.101.4",
     "ai": "^7.0.42",
     "class-variance-authority": "^0.7.1",
@@ -19,7 +19,7 @@
     "inngest": "^4.13.0",
     "lucide-react": "^1.27.0",
     "next": "15.1.7",
-    "prisma": "^7.9.1",
+    "prisma": "^5.22.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "recharts": "^3.10.1",
